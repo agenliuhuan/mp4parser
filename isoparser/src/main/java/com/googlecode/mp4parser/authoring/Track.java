@@ -80,6 +80,8 @@ public interface Track extends Closeable {
 
     public List<Edit> getEdits();
 
-    public Map<GroupEntry, long[]> getSampleGroups();
+
+
+    public List<TrackExtension> getTrackExtensions();
 
 }

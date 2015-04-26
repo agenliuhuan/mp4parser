@@ -6,10 +6,7 @@ import com.coremedia.iso.boxes.*;
 import com.coremedia.iso.boxes.sampleentry.AudioSampleEntry;
 import com.coremedia.iso.boxes.sampleentry.VisualSampleEntry;
 import com.googlecode.mp4parser.MemoryDataSourceImpl;
-import com.googlecode.mp4parser.authoring.Edit;
-import com.googlecode.mp4parser.authoring.Sample;
-import com.googlecode.mp4parser.authoring.Track;
-import com.googlecode.mp4parser.authoring.TrackMetaData;
+import com.googlecode.mp4parser.authoring.*;
 import com.googlecode.mp4parser.boxes.cenc.CencEncryptingSampleList;
 import com.googlecode.mp4parser.boxes.mp4.samplegrouping.CencSampleEncryptionInformationGroupEntry;
 import com.googlecode.mp4parser.boxes.mp4.samplegrouping.GroupEntry;
@@ -33,12 +30,11 @@ import static com.googlecode.mp4parser.util.CastUtils.l2i;
 /**
  * Encrypts a given track with common encryption.
  */
-public class CencEncryptingTrackImpl implements CencEncryptedTrack {
+public class CencEncryptingTrackImpl implements Track {
 
-    private final String encryptionAlgo;
     Track source;
     Map<UUID, SecretKey> keys = new HashMap<UUID, SecretKey>();
-    UUID defaultKeyId;
+
     List<Sample> samples;
     List<CencSampleAuxiliaryDataFormat> cencSampleAuxiliaryData;
     boolean dummyIvs = false;
@@ -46,64 +42,22 @@ public class CencEncryptingTrackImpl implements CencEncryptedTrack {
     SampleDescriptionBox stsd = null;
 
     RangeStartMap<Integer, SecretKey> indexToKey;
-    Map<GroupEntry, long[]> sampleGroups;
+    CencEncryptExtension cencEncryptExtension;
 
-    public CencEncryptingTrackImpl(Track source, UUID defaultKeyId, SecretKey key, boolean dummyIvs) {
-        this(source, defaultKeyId, Collections.singletonMap(defaultKeyId, key),
-                null,
-                "cenc", dummyIvs);
-    }
-
-    public CencEncryptingTrackImpl(Track source, UUID defaultKeyId, Map<UUID, SecretKey> keys,
-                                   Map<CencSampleEncryptionInformationGroupEntry, long[]> keyRotation,
-                                   String encryptionAlgo, boolean dummyIvs) {
-        this(source, defaultKeyId, keys, keyRotation, encryptionAlgo, dummyIvs, false);
-
-    }
 
     /**
      * Encrypts a given source track.
      *
      * @param source unencrypted source file
-     * @param defaultKeyId the default key ID - might be null if sample are not encrypted by default
      * @param keys key ID to key map
-     * @param keyRotation assigns an encryption group to a number of samples
-     * @param encryptionAlgo cenc or cbc1 (don't use cbc1)
-     * @param dummyIvs disables RNG for IVs and use IVs starting with 0x00...000
-     * @param encryptButAllClear will cause sub sample encryption format to keep full sample in clear (clear/encrypted pair will be len(sample)/0
      */
-    public CencEncryptingTrackImpl(Track source, UUID defaultKeyId, Map<UUID, SecretKey> keys,
-                                   Map<CencSampleEncryptionInformationGroupEntry, long[]> keyRotation,
-                                   String encryptionAlgo, boolean dummyIvs, boolean encryptButAllClear) {
+    public CencEncryptingTrackImpl(Track source, Map<UUID, SecretKey> keys,
+                                   CencEncryptExtension cencEncryptExtension) {
         this.source = source;
         this.keys = keys;
-        this.defaultKeyId = defaultKeyId;
-        this.dummyIvs = dummyIvs;
-        this.encryptionAlgo = encryptionAlgo;
-        this.sampleGroups = new HashMap<GroupEntry, long[]>();
-        for (Map.Entry<GroupEntry, long[]> entry : source.getSampleGroups().entrySet()) {
-            if (!(entry.getKey() instanceof CencSampleEncryptionInformationGroupEntry)) {
-                sampleGroups.put(entry.getKey(), entry.getValue());
-            }
-        }
-        if (keyRotation != null) {
-            for (Map.Entry<CencSampleEncryptionInformationGroupEntry, long[]> entry : keyRotation.entrySet()) {
-                sampleGroups.put(entry.getKey(), entry.getValue());
-            }
-        }
-        this.sampleGroups = new HashMap<GroupEntry, long[]>(sampleGroups) {
-            @Override
-            public long[] put(GroupEntry key, long[] value) {
-                if (key instanceof CencSampleEncryptionInformationGroupEntry) {
-                    throw new RuntimeException("Please supply CencSampleEncryptionInformationGroupEntries in the constructor");
-                }
-                return super.put(key, value);
-            }
-        };
-
+        this.cencEncryptExtension = cencEncryptExtension;
 
         this.samples = source.getSamples();
-        this.cencSampleAuxiliaryData = new ArrayList<CencSampleAuxiliaryDataFormat>();
 
         BigInteger one = new BigInteger("1");
         byte[] init = new byte[]{0, 0, 0, 0, 0, 0, 0, 0};
@@ -214,18 +168,6 @@ public class CencEncryptingTrackImpl implements CencEncryptedTrack {
         System.err.println("");
     }
 
-    public UUID getDefaultKeyId() {
-        return defaultKeyId;
-    }
-
-    public boolean hasSubSampleEncryption() {
-        return subSampleEncryption;
-    }
-
-    public List<CencSampleAuxiliaryDataFormat> getSampleEncryptionEntries() {
-        return cencSampleAuxiliaryData;
-    }
-
     public synchronized SampleDescriptionBox getSampleDescriptionBox() {
         if (stsd == null) {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -317,7 +259,7 @@ public class CencEncryptingTrackImpl implements CencEncryptedTrack {
         return source.getEdits();
     }
 
-    public Map<GroupEntry, long[]> getSampleGroups() {
-        return sampleGroups;
+    public List<TrackExtension> getTrackExtensions() {
+        new ArrayList<TrackExtension>( );
     }
 }
